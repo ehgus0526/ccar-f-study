@@ -9,8 +9,29 @@ try {
 } catch {}
 const base = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SECRET_KEY;
-if (!base || !key || !base.startsWith("https://"))
-  throw new Error("SUPABASE_URL과 SUPABASE_SECRET_KEY를 먼저 설정해 주세요.");
+const configurationErrors = [];
+try {
+  if (!base || !/^[\x21-\x7e]+$/.test(base)) throw new Error();
+  const url = new URL(base);
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash
+  )
+    throw new Error();
+} catch {
+  configurationErrors.push(
+    "SUPABASE_URL에 Supabase 프로젝트의 실제 HTTPS URL을 복사해 주세요. 한글 예시나 공백을 넣으면 안 됩니다.",
+  );
+}
+if (!key || !/^[\x21-\x7e]+$/.test(key))
+  configurationErrors.push(
+    "SUPABASE_SECRET_KEY에 Supabase Settings > API Keys의 실제 Secret key를 복사해 주세요. 한글 예시나 공백을 넣으면 안 됩니다. 키 값은 로그나 채팅에 공유하지 마세요.",
+  );
+if (configurationErrors.length) throw new Error(configurationErrors.join("\n"));
 const hashes = JSON.parse(process.env.STUDY_PASSWORD_HASHES || "{}");
 const request = async (path, body, headers = {}) => {
   const response = await fetch(`${base}${path}`, {
