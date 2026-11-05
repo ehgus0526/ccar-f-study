@@ -20,8 +20,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 17px;
-  background: var(--green-soft);
-  color: var(--green);
+  background: var(--accent-soft);
+  color: var(--accent);
   margin: 0 auto 17px;
 }
 .setupHeading h2 {
@@ -30,7 +30,7 @@
 }
 .setupHeading p {
   font-size: 12px;
-  color: #77816f;
+  color: #827c6e;
   margin-top: 8px;
 }
 .selectionHeading {
@@ -41,12 +41,12 @@
   margin: 0 0 12px;
   font-size: 12px;
   font-weight: 600;
-  color: #65735b;
+  color: #756d59;
 }
 .selectionHeading button {
   font-size: 11px;
   font-weight: 400;
-  color: var(--green);
+  color: var(--accent);
   min-height: 36px;
 }
 .groups {
@@ -67,21 +67,21 @@
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 19px 20px;
-  background: #fcfdfb;
+  background: #fdfcfb;
   transition:
     border-color 0.15s,
     background 0.15s;
 }
 .group:hover {
-  border-color: #b7cbb8;
+  border-color: #ccc6b5;
 }
 .group:focus-within {
-  outline: 3px solid #9db7a3;
+  outline: 3px solid #b9b09b;
   outline-offset: 3px;
 }
 .groupSelected {
-  background: var(--green-soft);
-  border-color: #89a28c;
+  background: var(--accent-soft);
+  border-color: #a49b87;
 }
 .group input {
   position: absolute;
@@ -92,12 +92,12 @@
   min-height: 0;
   margin: 0;
   padding: 0;
-  accent-color: var(--green);
+  accent-color: var(--accent);
 }
 .groupNumber {
   font-size: 10px;
   letter-spacing: 1px;
-  color: #83917b;
+  color: #938b79;
   margin-bottom: 7px;
 }
 .group strong {
@@ -107,13 +107,13 @@
 }
 .wordCount {
   font-size: 11px;
-  color: #697861;
+  color: #7a725f;
   margin-top: 2px;
 }
 .groupPreview {
   font-size: 10px;
   line-height: 1.7;
-  color: #899080;
+  color: #918c7f;
   margin-top: 15px;
   overflow: hidden;
   white-space: nowrap;
@@ -133,7 +133,7 @@
   flex-direction: column;
   gap: 5px;
   font-size: 11px;
-  color: #77816f;
+  color: #827c6e;
 }
 .startArea strong {
   font-size: 13px;
@@ -151,7 +151,7 @@
   border-top: 1px dashed var(--line);
   margin-top: 28px;
   padding-top: 21px;
-  color: #77816f;
+  color: #827c6e;
   font-size: 10px;
 }
 .howItWorks > span {
@@ -167,13 +167,13 @@
   align-items: center;
   justify-content: space-between;
   font-size: 11px;
-  color: #77816f;
+  color: #827c6e;
   gap: 12px;
 }
 .roundLabel {
   font-size: 11px;
-  color: var(--green);
-  background: var(--green-soft);
+  color: var(--accent);
+  background: var(--accent-soft);
   border-radius: 5px;
   padding: 4px 9px;
   font-weight: 600;
@@ -185,7 +185,7 @@
   margin: 21px 0 8px;
   gap: 12px;
   font-size: 10px;
-  color: #77816f;
+  color: #827c6e;
 }
 .progressHeading strong {
   font-size: 20px;
@@ -194,7 +194,7 @@
 .progressHeading strong span {
   font-size: 12px;
   font-weight: 400;
-  color: #77816f;
+  color: #827c6e;
 }
 .progress {
   display: block;
@@ -203,19 +203,19 @@
   border: 0;
   border-radius: 5px;
   overflow: hidden;
-  background: #edf0e8;
-  accent-color: var(--green);
+  background: #f1eee7;
+  accent-color: var(--accent);
 }
 .progress::-webkit-progress-bar {
-  background: #edf0e8;
+  background: #f1eee7;
   border-radius: 5px;
 }
 .progress::-webkit-progress-value {
-  background: var(--green);
+  background: var(--accent);
   border-radius: 5px;
 }
 .progress::-moz-progress-bar {
-  background: var(--green);
+  background: var(--accent);
   border-radius: 5px;
 }
 .questionArea {
@@ -228,14 +228,14 @@
   justify-content: center;
   padding: 2px 7px;
   border-radius: 4px;
-  background: #f0f3eb;
-  color: #738368;
+  background: #f4f1ea;
+  color: #857c66;
   font-size: 10px;
   white-space: nowrap;
 }
 .questionInstruction {
   font-size: 11px;
-  color: #77816f;
+  color: #827c6e;
   margin: 12px 0 13px;
 }
 .questionArea h2 {
@@ -261,12 +261,12 @@
   min-height: 60px;
   text-align: left;
   padding: 13px 17px;
-  border: 1px solid #dfe5da;
+  border: 1px solid #e6e2d9;
   border-radius: 9px;
   background: #fff;
   font-size: 13px;
   line-height: 1.7;
-  color: #57674f;
+  color: #69614d;
   overflow-wrap: anywhere;
 }
 .choice > span:nth-child(2) {
@@ -274,8 +274,8 @@
   min-width: 0;
 }
 .choice:not(:disabled):hover {
-  border-color: #91ad8a;
-  background: #f9fbf5;
+  border-color: #b0a487;
+  background: #fbf9f5;
 }
 .choice:disabled {
   opacity: 1;
@@ -284,23 +284,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #e3e8dd;
+  border: 1px solid #e9e5dc;
   border-radius: 6px;
   min-width: 26px;
   height: 26px;
-  color: #8a977f;
+  color: #99917d;
   font-size: 11px;
   flex-shrink: 0;
 }
 .correct {
-  background: #edf5ec;
-  border-color: #83a285;
-  color: #3e6746;
+  background: #f6f3eb;
+  border-color: #a49a81;
+  color: #6a5c3b;
 }
 .correct .choiceNumber {
   color: #fff;
-  background: var(--green);
-  border-color: var(--green);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .wrong {
   background: #fbefea;
@@ -334,12 +334,12 @@
   flex-direction: column;
   gap: 4px;
   font-size: 11px;
-  color: #77816f;
+  color: #827c6e;
   min-width: 0;
 }
 .feedback strong {
   font-size: 12px;
-  color: var(--green);
+  color: var(--accent);
   font-weight: 600;
 }
 .feedback > span {
@@ -364,7 +364,7 @@
 }
 .resultsIntro p {
   font-size: 12px;
-  color: #77816f;
+  color: #827c6e;
   margin-top: 8px;
 }
 .scoreGrid {
@@ -381,7 +381,7 @@
 }
 .scoreGrid dt {
   font-size: 11px;
-  color: #77816f;
+  color: #827c6e;
 }
 .scoreGrid dd {
   margin: 6px 0 0;
@@ -392,7 +392,7 @@
 }
 .scoreGrid dd small {
   font-size: 11px;
-  color: #77816f;
+  color: #827c6e;
   font-weight: 400;
   margin-left: 4px;
 }
@@ -410,7 +410,7 @@
 .resultActions :global(.text-button) {
   min-height: 40px;
   font-size: 11px;
-  color: #77816f;
+  color: #827c6e;
 }
 .wrongList {
   margin-top: 24px;
@@ -422,7 +422,7 @@
   min-height: 38px;
   font-size: 12px;
   font-weight: 600;
-  color: #65735b;
+  color: #756d59;
 }
 .wrongList ul {
   list-style: none;
@@ -453,7 +453,7 @@
 }
 .wrongList li > div > span {
   font-size: 11px;
-  color: #77816f;
+  color: #827c6e;
 }
 @media (max-width: 760px) {
   .setup,

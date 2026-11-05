@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.ts",
     "test:http": "node scripts/smoke.mjs",
+    "test:performance": "node scripts/check-performance.mjs",
     "setup:members": "node scripts/setup-members.mjs",
     "setup:supabase": "node scripts/setup-supabase.mjs"
   },

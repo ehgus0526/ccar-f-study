@@ -48,11 +48,9 @@ export default function VocabularyQuiz() {
     <>
       <div className="page-heading">
         <div>
-          <h1>
-            영단어 퀴즈<span className="heading-dot">.</span>
-          </h1>
+          <h1>오늘도 노딧!</h1>
           <p className="page-description">
-            단어 묶음을 선택해 뜻을 맞히고 오답을 복습하세요.
+            영단어 퀴즈 · 단어 묶음을 선택해 뜻을 맞히고 오답을 복습하세요.
           </p>
         </div>
         {round && (
@@ -278,7 +276,7 @@ export default function VocabularyQuiz() {
         >
           <div className={styles.resultsIntro}>
             <span className={styles.resultIcon}>
-              <Icon name={result.wrong.length ? "leaf" : "check"} size={29} />
+              <Icon name={result.wrong.length ? "pen" : "check"} size={29} />
             </span>
             <h2 id="quiz-results-heading" ref={heading} tabIndex={-1}>
               {round.isReview ? "오답 복습 결과" : "퀴즈 결과"}

@@ -18,10 +18,10 @@ export function Brand() {
   return (
     <span className="brand">
       <span className="brand-mark">
-        <Icon name="leaf" size={22} />
+        <Icon name="pen" size={22} />
       </span>
       <span>
-        틈틈<span className="brand-dot">.</span>
+        nodit<span className="brand-dot">.</span>
         <small>CCAR-F STUDY</small>
       </span>
     </span>
@@ -37,20 +37,32 @@ export default function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   useEffect(() => {
+    if (pathname === "/quiz") return;
+    let lastRefresh = Date.now();
     const refresh = () => {
-      if (document.visibilityState === "visible") router.refresh();
+      const now = Date.now();
+      if (
+        document.visibilityState !== "visible" ||
+        !navigator.onLine ||
+        now - lastRefresh < 30000
+      )
+        return;
+      lastRefresh = now;
+      router.refresh();
     };
-    const timer = setInterval(refresh, 30000);
+    const timer = setInterval(refresh, 60000);
     window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
     return () => {
       clearInterval(timer);
       window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
     };
-  }, [router]);
+  }, [pathname, router]);
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <Link href="/" aria-label="틈틈 캘린더 홈">
+        <Link href="/" aria-label="노딧 캘린더 홈">
           <Brand />
         </Link>
         <nav className="desktop-nav" aria-label="주 메뉴">

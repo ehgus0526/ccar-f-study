@@ -78,9 +78,9 @@ const paths: Record<string, React.ReactNode> = {
       <path d="m15 5 4 4M4 20l5-1L21 7a3 3 0 0 0-4-4L5 15l-1 5Z" />
     </>
   ),
-  leaf: (
+  pen: (
     <>
-      <path d="M20 3c1 10-3 17-10 17a6 6 0 0 1-6-6C4 7 12 8 20 3ZM4 21 15 10" />
+      <path d="m15 5 4 4M4 20l5-1L21 7a3 3 0 0 0-4-4L5 15l-1 5ZM4 20h6" />
     </>
   ),
   arrow: <path d="M4 12h16m-6-6 6 6-6 6" />,

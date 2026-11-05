@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useOptimistic, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { completeTodoAction } from "@/lib/client-actions";
-import { calendarDates, readableDate, shiftMonth } from "@/lib/dates";
+import { calendarDates, isDate, readableDate, shiftMonth } from "@/lib/dates";
 import { CURRICULUM, getMember, KIND_LABELS, MEMBERS } from "@/lib/catalog";
 import type { Member, MemberId, TodoView } from "@/lib/types";
 import Icon from "./Icon";
@@ -13,7 +13,7 @@ export default function Calendar({
   member,
   todos,
   month,
-  selectedDate,
+  selectedDate: initialSelectedDate,
   today,
 }: {
   member: Member;
@@ -23,6 +23,21 @@ export default function Calendar({
   today: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryDate = searchParams.get("date");
+  const selectedDate =
+    isDate(queryDate) && queryDate.startsWith(month)
+      ? queryDate
+      : initialSelectedDate;
+  const [currentTodos, updateCompletion] = useOptimistic(
+    todos,
+    (current, update: Pick<TodoView, "id" | "completed_at">) =>
+      current.map((todo) =>
+        todo.id === update.id
+          ? { ...todo, completed_at: update.completed_at }
+          : todo,
+      ),
+  );
   const [filter, setFilter] = useState<MemberId | "all">("all");
   const [editor, setEditor] = useState<{
     date: string;
@@ -31,22 +46,33 @@ export default function Calendar({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [pendingId, setPendingId] = useState("");
-  const monthTodos = todos.filter((todo) => todo.date.startsWith(month));
+  const monthTodos = currentTodos.filter((todo) => todo.date.startsWith(month));
   const complete = monthTodos.filter((todo) => todo.completed_at).length;
-  const visibleTodos = todos.filter(
+  const visibleTodos = currentTodos.filter(
     (todo) => filter === "all" || todo.member_id === filter,
   );
-  const dayTodos = visibleTodos.filter((todo) => todo.date === selectedDate);
+  const byDate = new Map<string, TodoView[]>();
+  for (const todo of visibleTodos) {
+    const entries = byDate.get(todo.date);
+    if (entries) entries.push(todo);
+    else byDate.set(todo.date, [todo]);
+  }
+  const dayTodos = byDate.get(selectedDate) || [];
   const navigate = (newMonth: string, date: string) => {
-    router.push(`/?month=${newMonth}&date=${date}`, { scroll: false });
+    const url = `/?month=${newMonth}&date=${date}`;
+    if (newMonth !== month) router.push(url, { scroll: false });
+    else if (date !== selectedDate) window.history.pushState(null, "", url);
   };
   const toggle = (todo: TodoView) => {
     setError("");
     setPendingId(todo.id);
     startTransition(async () => {
+      updateCompletion({
+        id: todo.id,
+        completed_at: todo.completed_at ? null : new Date().toISOString(),
+      });
       const result = await completeTodoAction(todo.id, !todo.completed_at);
       if (!result.ok) setError(result.error);
-      router.refresh();
       setPendingId("");
     });
   };
@@ -55,7 +81,7 @@ export default function Calendar({
       <div className="page-heading">
         <div>
           <h1>
-            학습 캘린더<span className="heading-dot">.</span>
+            우리의 학습 기록<span className="heading-dot">.</span>
           </h1>
           <p className="page-description">
             구성원별 학습 일정과 완료 상태를 확인하세요.
@@ -189,7 +215,7 @@ export default function Calendar({
           </div>
           <div className="calendar-grid">
             {calendarDates(month).map((date, index) => {
-              const entries = visibleTodos.filter((todo) => todo.date === date);
+              const entries = byDate.get(date) || [];
               return (
                 <button
                   key={date}
@@ -202,7 +228,7 @@ export default function Calendar({
                   <span className="day-number">{Number(date.slice(-2))}</span>
                   {date === today && <span className="today-label">오늘</span>}
                   <span className="calendar-entries">
-                    {entries.slice(0, 2).map((todo) => (
+                    {entries.map((todo) => (
                       <span
                         key={todo.id}
                         className={`calendar-entry ${getMember(todo.member_id)!.color} ${todo.completed_at ? "done" : ""}`}
@@ -213,21 +239,6 @@ export default function Calendar({
                         <span className="entry-title">{todo.title}</span>
                         {todo.completed_at && <Icon name="check" size={11} />}
                       </span>
-                    ))}
-                    {entries.length > 2 && (
-                      <span className="more-entries">
-                        +{entries.length - 2}개 더
-                      </span>
-                    )}
-                  </span>
-                  <span className="mobile-day-dots">
-                    {MEMBERS.filter((person) =>
-                      entries.some((todo) => todo.member_id === person.id),
-                    ).map((person) => (
-                      <span
-                        className={`member-dot ${person.color}`}
-                        key={person.id}
-                      />
                     ))}
                   </span>
                 </button>
@@ -249,7 +260,7 @@ export default function Calendar({
                   : "등록된 일정이 없습니다."}
               </span>
               {selectedDate === today && (
-                <span className="badge soft-green">TODAY</span>
+                <span className="badge soft-gold">TODAY</span>
               )}
             </div>
           </div>

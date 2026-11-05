@@ -111,7 +111,6 @@ export default function TodoEditor({
             note,
           });
       if (result.ok) {
-        router.refresh();
         onClose();
       } else setError(result.error);
     });
@@ -319,7 +318,6 @@ export default function TodoEditor({
                       if (result.ok) {
                         setPhoto(null);
                         setMessage("사진을 삭제했어요.");
-                        router.refresh();
                       } else setError(result.error);
                     });
                   }}
@@ -403,7 +401,6 @@ export default function TodoEditor({
                   startTransition(async () => {
                     const result = await deleteTodoAction(todo.id);
                     if (result.ok) {
-                      router.refresh();
                       onClose();
                     } else setError(result.error);
                   });

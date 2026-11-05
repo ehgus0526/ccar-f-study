@@ -17,10 +17,9 @@ function failure(error: unknown): ActionResult {
         : "저장하지 못했습니다. 잠시 후 다시 시도해 주세요.",
   };
 }
-function refresh() {
+function refreshTodos() {
   revalidatePath("/");
   revalidatePath("/curriculum");
-  revalidatePath("/shared");
 }
 export async function loginAction(form: FormData): Promise<ActionResult> {
   try {
@@ -43,7 +42,7 @@ export async function createTodoAction(
   try {
     const member = await requireMember();
     await service.createTodos(member.id, input);
-    refresh();
+    refreshTodos();
     return { ok: true };
   } catch (error) {
     return failure(error);
@@ -61,7 +60,7 @@ export async function updateTodoAction(
   try {
     const member = await requireMember();
     await service.updateTodo(member.id, id, input);
-    refresh();
+    refreshTodos();
     return { ok: true };
   } catch (error) {
     return failure(error);
@@ -74,7 +73,7 @@ export async function completeTodoAction(
   try {
     const member = await requireMember();
     await service.completeTodo(member.id, id, completed);
-    refresh();
+    refreshTodos();
     return { ok: true };
   } catch (error) {
     return failure(error);
@@ -87,7 +86,7 @@ export async function deleteTodoAction(id: string): Promise<ActionResult> {
     // Remove the file first: if storage fails, the record stays available for retry.
     if (todo.photo_key) await removePhoto(todo.photo_key);
     await store.removeTodo(id, member.id);
-    refresh();
+    refreshTodos();
     return { ok: true };
   } catch (error) {
     return failure(error);
@@ -99,7 +98,7 @@ export async function deleteTodoPhotoAction(id: string): Promise<ActionResult> {
     const todo = await service.ownedTodo(member.id, id);
     if (todo.photo_key) await removePhoto(todo.photo_key);
     await store.patchTodo(id, member.id, { photo_key: null });
-    refresh();
+    revalidatePath("/");
     return { ok: true };
   } catch (error) {
     return failure(error);
@@ -113,7 +112,7 @@ export async function savePostAction(input: {
   try {
     const member = await requireMember();
     await service.writePost(member.id, input);
-    refresh();
+    revalidatePath("/shared");
     return { ok: true };
   } catch (error) {
     return failure(error);
@@ -124,7 +123,7 @@ export async function deletePostAction(id: string): Promise<ActionResult> {
     const member = await requireMember();
     service.validId(id);
     await store.removePost(id, member.id);
-    refresh();
+    revalidatePath("/shared");
     return { ok: true };
   } catch (error) {
     return failure(error);

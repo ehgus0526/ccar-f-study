@@ -26,6 +26,9 @@ export function validPhotoKey(key: string) {
     key,
   );
 }
+export function photoPath(key: string | null) {
+  return key && validPhotoKey(key) ? `/api/photos/${key}` : null;
+}
 export async function putPhoto(
   memberId: MemberId,
   todoId: string,

@@ -1,6 +1,6 @@
 import { currentMember } from "@/lib/auth";
 import { ownedTodo } from "@/lib/service";
-import { MAX_PHOTO_SIZE, photoUrl, putPhoto, removePhoto } from "@/lib/photos";
+import { MAX_PHOTO_SIZE, photoPath, putPhoto, removePhoto } from "@/lib/photos";
 import { patchTodo } from "@/lib/store";
 import { revalidatePath } from "next/cache";
 import { hasSameOrigin } from "@/lib/request";
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       }
     }
     revalidatePath("/");
-    return Response.json({ ok: true, photoUrl: await photoUrl(key) });
+    return Response.json({ ok: true, photoUrl: photoPath(key) });
   } catch (error) {
     return Response.json(
       {

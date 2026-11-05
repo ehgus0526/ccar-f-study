@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { deletePostAction, savePostAction } from "@/lib/client-actions";
 import { getMember } from "@/lib/catalog";
 import { readableTime } from "@/lib/dates";
@@ -16,7 +15,6 @@ export default function SharedBoard({
   member: Member;
   posts: SharedPost[];
 }) {
-  const router = useRouter();
   const [editing, setEditing] = useState<SharedPost | "new" | null>(null);
   const [body, setBody] = useState("");
   const [url, setUrl] = useState("");
@@ -137,7 +135,6 @@ export default function SharedBoard({
                 });
                 if (result.ok) {
                   setEditing(null);
-                  router.refresh();
                 } else setError(result.error);
               });
             }}
@@ -212,7 +209,6 @@ export default function SharedBoard({
                     const result = await deletePostAction(confirm);
                     if (result.ok) {
                       setConfirm(null);
-                      router.refresh();
                     } else setError(result.error);
                   });
                 }}

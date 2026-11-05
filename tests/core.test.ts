@@ -41,6 +41,31 @@ test("yymmdd passwords preserve leading zeroes and never store the original", ()
   assert.notEqual(hashPassword("010101"), hashed);
   assert.throws(() => hashPassword("0101"));
 });
+test("completed curriculum history includes only the member's completed linked items", async () => {
+  for (const [memberId, item, completed] of [
+    ["dohyeon", "vocab-1", true],
+    ["dohyeon", "vocab-1", true],
+    ["dohyeon", "vocab-2", false],
+    ["dohyeon", null, true],
+    ["yeeun", "vocab-3", true],
+  ] as const) {
+    const batchId = randomUUID();
+    await service.createTodos(memberId, {
+      batchId,
+      title: "완료 이력 검증",
+      curriculumId: item,
+      dates: ["2026-10-01"],
+      note: "",
+    });
+    const todo = (await store.listTodos("2026-10-01", "2026-10-01")).find(
+      (todo) => todo.batch_id === batchId,
+    )!;
+    if (completed) await service.completeTodo(memberId, todo.id, true);
+  }
+  assert.deepEqual(await store.completedCurriculumIds("dohyeon"), ["vocab-1"]);
+  assert.deepEqual(await store.completedCurriculumIds("yeeun"), ["vocab-3"]);
+  assert.deepEqual(await store.completedCurriculumIds("jieun"), []);
+});
 test("Korean calendar dates work across midnight, leap day, and year boundaries", () => {
   assert.equal(todayKST(new Date("2026-11-04T14:59:59Z")), "2026-11-04");
   assert.equal(todayKST(new Date("2026-11-04T15:00:00Z")), "2026-11-05");

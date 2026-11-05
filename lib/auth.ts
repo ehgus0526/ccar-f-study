@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { getMember, MEMBERS } from "./catalog.ts";
 import {
   deleteSession,
@@ -15,12 +16,13 @@ import { verifyPassword } from "./password.ts";
 const COOKIE = "ccarf_session";
 const tokenHash = (token: string) =>
   createHash("sha256").update(token).digest("hex");
-export async function currentMember() {
+// Deduplicate layout/page checks within one render; never cache across requests.
+export const currentMember = cache(async () => {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
   const id = await sessionMember(tokenHash(token));
   return id ? (getMember(id) ?? null) : null;
-}
+});
 export async function requireMember() {
   const member = await currentMember();
   if (!member)

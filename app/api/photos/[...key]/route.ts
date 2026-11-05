@@ -1,6 +1,6 @@
 import { currentMember } from "@/lib/auth";
-import { localPhoto, validPhotoKey } from "@/lib/photos";
-import { getTodo } from "@/lib/store";
+import { localPhoto, photoUrl, validPhotoKey } from "@/lib/photos";
+import { getTodo, storageMode } from "@/lib/store";
 
 export const runtime = "nodejs";
 export async function GET(
@@ -14,6 +14,13 @@ export async function GET(
   const todo = await getTodo(parts[1]);
   if (!todo || todo.photo_key !== key)
     return new Response(null, { status: 404 });
+  if (storageMode() === "supabase") {
+    const url = await photoUrl(key);
+    return new Response(null, {
+      status: 307,
+      headers: { Location: url!, "Cache-Control": "private, no-store" },
+    });
+  }
   const bytes = await localPhoto(key);
   if (!bytes) return new Response(null, { status: 404 });
   const extension = key.split(".").at(-1);

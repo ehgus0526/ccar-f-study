@@ -204,6 +204,24 @@ export async function listTodos(from: string, to: string): Promise<Todo[]> {
     order: "created_at.asc",
   });
 }
+export async function completedCurriculumIds(
+  memberId: MemberId,
+): Promise<string[]> {
+  const completed =
+    storageMode() === "local"
+      ? (localDb()
+          .prepare(
+            "SELECT DISTINCT curriculum_id FROM todos WHERE member_id=? AND completed_at IS NOT NULL AND curriculum_id IS NOT NULL",
+          )
+          .all(memberId) as { curriculum_id: string }[])
+      : await rows<{ curriculum_id: string }>("todos", {
+          select: "curriculum_id",
+          member_id: `eq.${memberId}`,
+          completed_at: "not.is.null",
+          curriculum_id: "not.is.null",
+        });
+  return [...new Set(completed.map((todo) => todo.curriculum_id))];
+}
 export async function getTodo(id: string): Promise<Todo | null> {
   if (storageMode() === "local")
     return (

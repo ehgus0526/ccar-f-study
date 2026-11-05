@@ -2,7 +2,7 @@ import Calendar from "@/components/Calendar";
 import { pageMember } from "@/lib/auth";
 import { calendarDates, isDate, todayKST } from "@/lib/dates";
 import { listTodos } from "@/lib/store";
-import { photoUrl } from "@/lib/photos";
+import { photoPath } from "@/lib/photos";
 
 export default async function CalendarPage({
   searchParams,
@@ -24,12 +24,10 @@ export default async function CalendarPage({
         : `${month}-01`;
   const days = calendarDates(month);
   const records = await listTodos(days[0], days.at(-1)!);
-  const todos = await Promise.all(
-    records.map(async (todo) => ({
-      ...todo,
-      photo_url: todo.date === date ? await photoUrl(todo.photo_key) : null,
-    })),
-  );
+  const todos = records.map((todo) => ({
+    ...todo,
+    photo_url: photoPath(todo.photo_key),
+  }));
   return (
     <Calendar
       key={month}
