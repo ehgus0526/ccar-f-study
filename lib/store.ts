@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { MEMBERS } from "./catalog.ts";
-import type { MemberId, SharedPost, Todo } from "./types.ts";
+import type { MemberId, SharedComment, SharedPost, Todo } from "./types.ts";
 
 export function storageMode() {
   if (process.env.STUDY_STORAGE === "supabase") {
@@ -35,7 +35,15 @@ export function localDb() {
     CREATE TABLE IF NOT EXISTS todos(id TEXT PRIMARY KEY, member_id TEXT NOT NULL REFERENCES members(id), curriculum_id TEXT, title TEXT NOT NULL, date TEXT NOT NULL, completed_at TEXT, note TEXT NOT NULL DEFAULT '', photo_key TEXT, created_at TEXT NOT NULL, batch_id TEXT NOT NULL, UNIQUE(member_id, batch_id, date));
     CREATE INDEX IF NOT EXISTS todos_date ON todos(date);
     CREATE TABLE IF NOT EXISTS shared_posts(id TEXT PRIMARY KEY, member_id TEXT NOT NULL REFERENCES members(id), body TEXT NOT NULL, url TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS shared_comments(id TEXT PRIMARY KEY, post_id TEXT NOT NULL REFERENCES shared_posts(id) ON DELETE CASCADE, member_id TEXT NOT NULL REFERENCES members(id), body TEXT NOT NULL CHECK(length(body) BETWEEN 1 AND 1000), created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS shared_comments_post_created ON shared_comments(post_id, created_at, id);
   `);
+  if (
+    !(
+      db.prepare("PRAGMA table_info(shared_posts)").all() as { name: string }[]
+    ).some((column) => column.name === "photo_key")
+  )
+    db.exec("ALTER TABLE shared_posts ADD COLUMN photo_key TEXT");
   const hashes = JSON.parse(
     process.env.STUDY_PASSWORD_HASHES || "{}",
   ) as Record<string, string>;
@@ -327,6 +335,16 @@ export async function listPosts(): Promise<SharedPost[]> {
       .all() as SharedPost[];
   return rows<SharedPost>("shared_posts", { order: "created_at.desc" });
 }
+export async function getPost(id: string): Promise<SharedPost | null> {
+  if (storageMode() === "local")
+    return (
+      (localDb().prepare("SELECT * FROM shared_posts WHERE id=?").get(id) as
+        SharedPost | undefined) ?? null
+    );
+  return (
+    (await rows<SharedPost>("shared_posts", { id: `eq.${id}` }))[0] ?? null
+  );
+}
 export async function savePost(post: SharedPost, editing = false) {
   if (storageMode() === "local") {
     const db = localDb();
@@ -334,20 +352,29 @@ export async function savePost(post: SharedPost, editing = false) {
       if (
         !db
           .prepare(
-            "UPDATE shared_posts SET body=?,url=?,updated_at=? WHERE id=? AND member_id=?",
+            "UPDATE shared_posts SET body=?,url=?,photo_key=?,updated_at=? WHERE id=? AND member_id=?",
           )
-          .run(post.body, post.url, post.updated_at, post.id, post.member_id)
-          .changes
+          .run(
+            post.body,
+            post.url,
+            post.photo_key,
+            post.updated_at,
+            post.id,
+            post.member_id,
+          ).changes
       )
         throw new Error("본인의 글만 수정할 수 있습니다.");
     } else
-      db.prepare("INSERT INTO shared_posts VALUES(?,?,?,?,?,?)").run(
+      db.prepare(
+        "INSERT INTO shared_posts(id,member_id,body,url,created_at,updated_at,photo_key) VALUES(?,?,?,?,?,?,?)",
+      ).run(
         post.id,
         post.member_id,
         post.body,
         post.url,
         post.created_at,
         post.updated_at,
+        post.photo_key,
       );
     return;
   }
@@ -355,7 +382,12 @@ export async function savePost(post: SharedPost, editing = false) {
     ? `?${new URLSearchParams({ id: `eq.${post.id}`, member_id: `eq.${post.member_id}` })}`
     : "";
   const value = editing
-    ? { body: post.body, url: post.url, updated_at: post.updated_at }
+    ? {
+        body: post.body,
+        url: post.url,
+        photo_key: post.photo_key,
+        updated_at: post.updated_at,
+      }
     : post;
   const changed = await supabase(`/rest/v1/shared_posts${suffix}`, {
     method: editing ? "PATCH" : "POST",
@@ -380,4 +412,84 @@ export async function removePost(id: string, memberId: MemberId) {
     { method: "DELETE", headers: { Prefer: "return=representation" } },
   );
   if (!removed.length) throw new Error("본인의 글만 삭제할 수 있습니다.");
+}
+export async function listComments(): Promise<SharedComment[]> {
+  if (storageMode() === "local")
+    return localDb()
+      .prepare("SELECT * FROM shared_comments ORDER BY created_at ASC, id ASC")
+      .all() as SharedComment[];
+  const comments: SharedComment[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const page = await rows<SharedComment>("shared_comments", {
+      order: "created_at.asc,id.asc",
+      limit: String(pageSize),
+      offset: String(offset),
+    });
+    comments.push(...page);
+    if (page.length < pageSize) return comments;
+  }
+}
+export async function saveComment(comment: SharedComment, editing = false) {
+  if (storageMode() === "local") {
+    const db = localDb();
+    if (editing) {
+      const result = db
+        .prepare(
+          "UPDATE shared_comments SET body=?,updated_at=? WHERE id=? AND post_id=? AND member_id=?",
+        )
+        .run(
+          comment.body,
+          comment.updated_at,
+          comment.id,
+          comment.post_id,
+          comment.member_id,
+        );
+      if (!result.changes) throw new Error("본인의 댓글만 수정할 수 있습니다.");
+    } else
+      db.prepare(
+        "INSERT INTO shared_comments(id,post_id,member_id,body,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+      ).run(
+        comment.id,
+        comment.post_id,
+        comment.member_id,
+        comment.body,
+        comment.created_at,
+        comment.updated_at,
+      );
+    return;
+  }
+  const suffix = editing
+    ? `?${new URLSearchParams({ id: `eq.${comment.id}`, post_id: `eq.${comment.post_id}`, member_id: `eq.${comment.member_id}` })}`
+    : "";
+  const changed = await supabase(`/rest/v1/shared_comments${suffix}`, {
+    method: editing ? "PATCH" : "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify(
+      editing
+        ? { body: comment.body, updated_at: comment.updated_at }
+        : comment,
+    ),
+  });
+  if (editing && !changed.length)
+    throw new Error("본인의 댓글만 수정할 수 있습니다.");
+}
+export async function removeComment(id: string, memberId: MemberId) {
+  if (storageMode() === "local") {
+    if (
+      !localDb()
+        .prepare("DELETE FROM shared_comments WHERE id=? AND member_id=?")
+        .run(id, memberId).changes
+    )
+      throw new Error("본인의 댓글만 삭제할 수 있습니다.");
+    return;
+  }
+  const removed = await supabase(
+    `/rest/v1/shared_comments?${new URLSearchParams({ id: `eq.${id}`, member_id: `eq.${memberId}` })}`,
+    {
+      method: "DELETE",
+      headers: { Prefer: "return=representation" },
+    },
+  );
+  if (!removed.length) throw new Error("본인의 댓글만 삭제할 수 있습니다.");
 }

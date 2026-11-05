@@ -29,15 +29,18 @@ export function validPhotoKey(key: string) {
 export function photoPath(key: string | null) {
   return key && validPhotoKey(key) ? `/api/photos/${key}` : null;
 }
+export function postPhotoPath(key: string | null) {
+  return key && validPhotoKey(key) ? `/api/post-photos/${key}` : null;
+}
 export async function putPhoto(
   memberId: MemberId,
-  todoId: string,
+  recordId: string,
   bytes: Uint8Array,
 ) {
   const extension = photoType(bytes);
   if (!extension || bytes.length > MAX_PHOTO_SIZE)
     throw new Error("JPEG·PNG·WebP 사진을 2MB 이내로 첨부해 주세요.");
-  const key = `${memberId}/${todoId}/${randomUUID()}.${extension}`;
+  const key = `${memberId}/${recordId}/${randomUUID()}.${extension}`;
   if (storageMode() === "local") {
     const path = join(dataDirectory(), "photos", key);
     await mkdir(dirname(path), { recursive: true, mode: 0o700 });

@@ -229,12 +229,266 @@ export async function checkBrowser({ base, token, requests, todos, state }) {
     await evaluate(
       `(() => { const input=document.querySelector('#post-body'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'공유 검증 메모'); input.dispatchEvent(new Event('input',{bubbles:true})); })()`,
     );
+    const choosePostImage = (label) =>
+      evaluate(`(() => {
+      const canvas=document.createElement('canvas'); canvas.width=480; canvas.height=300;
+      const ctx=canvas.getContext('2d'); ctx.fillStyle='#fbf2d8'; ctx.fillRect(0,0,480,300);
+      ctx.fillStyle='#342c1c'; ctx.font='bold 40px sans-serif'; ctx.fillText('CCAR-F',40,90);
+      ctx.font='24px sans-serif'; ctx.fillText(${JSON.stringify(label)},40,150);
+      const bytes=Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]),c=>c.charCodeAt(0));
+      const transfer=new DataTransfer(); transfer.items.add(new File([bytes],'study.png',{type:'image/png'}));
+      const input=document.querySelector('#post-photo'); input.files=transfer.files;
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+    })()`);
+    await choosePostImage("study note");
+    await waitFor(
+      `document.querySelector('.post-image-editor img')?.naturalWidth === 480`,
+    );
+    state.failNextPostWrite = true;
+    await evaluate(
+      `document.querySelector('dialog[open] .dialog-actions .primary').click()`,
+    );
+    await waitFor(`!!document.querySelector('dialog[open] [role="alert"]')`);
+    assert.equal(
+      await evaluate(`document.querySelector('#post-body').value`),
+      "공유 검증 메모",
+      "failed post keeps the body",
+    );
+    assert.ok(
+      await evaluate(
+        `document.querySelector('.post-image-editor img').src.startsWith('blob:')`,
+      ),
+      "failed post keeps the selected image",
+    );
     await evaluate(
       `document.querySelector('dialog[open] .dialog-actions .primary').click()`,
     );
     await waitFor(
       `!document.querySelector('dialog[open]') && document.querySelector('.post-body')?.textContent === '공유 검증 메모'`,
     );
+    await waitFor(`document.querySelectorAll('.comment-body').length === 2`);
+    await waitFor(
+      `document.querySelector('.post-image img')?.naturalWidth === 480`,
+    );
+    const firstPostPhoto = await evaluate(
+      `document.querySelector('.post-image').getAttribute('href')`,
+    );
+    const commentBodies = () =>
+      evaluate(
+        `[...document.querySelectorAll('.comment-body')].map(el=>el.textContent)`,
+      );
+    const typeComment = (selector, body) =>
+      evaluate(`(() => {
+      const input=document.querySelector(${JSON.stringify(selector)});
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,${JSON.stringify(body)});
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+    })()`);
+    assert.deepEqual(await commentBodies(), ["먼저 쓴 댓글", "나중 쓴 댓글"]);
+    assert.equal(
+      await evaluate(
+        `!!document.querySelector('.comment-item').querySelector('.comment-actions')`,
+      ),
+      false,
+      "post owner cannot edit another member's comment",
+    );
+    assert.equal(
+      await evaluate(`!!document.querySelector('.comment-form')`),
+      false,
+      "new comment input is initially collapsed while comments remain visible",
+    );
+    const commentTypography = await evaluate(`(() => {
+      const postName=document.querySelector('.post-top strong');
+      const postDate=document.querySelector('.post-top time');
+      const name=document.querySelector('.comment-author strong');
+      const date=document.querySelector('.comment-author time');
+      return {postName:parseFloat(getComputedStyle(postName).fontSize), postDate:parseFloat(getComputedStyle(postDate).fontSize), name:parseFloat(getComputedStyle(name).fontSize), date:parseFloat(getComputedStyle(date).fontSize), nameColor:getComputedStyle(name).color, dateColor:getComputedStyle(date).color, right:date.getBoundingClientRect().left >= name.getBoundingClientRect().right, sameLine:Math.abs(date.getBoundingClientRect().top-name.getBoundingClientRect().top)<5};
+    })()`);
+    assert.ok(commentTypography.postName > commentTypography.name);
+    assert.ok(commentTypography.postDate > commentTypography.date);
+    assert.notEqual(commentTypography.nameColor, commentTypography.dateColor);
+    assert.ok(
+      commentTypography.right && commentTypography.sameLine,
+      "comment time is beside the name",
+    );
+    await evaluate(`document.querySelector('.comment-compose-toggle').click()`);
+    await waitFor(
+      `document.querySelector('.comment-compose-toggle')?.getAttribute('aria-expanded') === 'true' && document.activeElement === document.querySelector('.comment-form textarea')`,
+    );
+    await typeComment(".comment-form textarea", "작성 중 댓글");
+    await evaluate(`document.querySelector('.comment-compose-toggle').click()`);
+    await waitFor(`!document.querySelector('.comment-form')`);
+    assert.equal(
+      await evaluate(`document.querySelectorAll('.comment-body').length`),
+      2,
+      "closing the input keeps the comment list visible",
+    );
+    await evaluate(`document.querySelector('.comment-compose-toggle').click()`);
+    await waitFor(`!!document.querySelector('.comment-form textarea')`);
+    assert.equal(
+      await evaluate(`document.querySelector('.comment-form textarea').value`),
+      "작성 중 댓글",
+      "closing and reopening preserves the draft",
+    );
+    await typeComment(".comment-form textarea", "등록한 댓글");
+    await evaluate(`document.querySelector('.comment-form .button').click()`);
+    await waitFor(`document.querySelectorAll('.comment-body').length === 3`);
+    await waitFor(
+      `!document.querySelector('.comment-form') && document.activeElement === document.querySelector('.comment-compose-toggle')`,
+    );
+    assert.deepEqual(await commentBodies(), [
+      "먼저 쓴 댓글",
+      "나중 쓴 댓글",
+      "등록한 댓글",
+    ]);
+    const created = await evaluate(
+      `document.querySelectorAll('.comment-item time')[1].dateTime`,
+    );
+    await evaluate(
+      `document.querySelectorAll('.comment-item')[1].querySelector('.comment-actions button').click()`,
+    );
+    await waitFor(`!!document.querySelector('.comment-edit-form textarea')`);
+    await typeComment(".comment-edit-form textarea", "수정한 댓글");
+    await evaluate(
+      `document.querySelector('.comment-edit-form .primary').click()`,
+    );
+    await waitFor(
+      `!document.querySelector('.comment-edit-form') && document.querySelectorAll('.comment-body')[1]?.textContent === '수정한 댓글'`,
+    );
+    assert.deepEqual(await commentBodies(), [
+      "먼저 쓴 댓글",
+      "수정한 댓글",
+      "등록한 댓글",
+    ]);
+    assert.equal(
+      await evaluate(
+        `document.querySelectorAll('.comment-item time')[1].dateTime`,
+      ),
+      created,
+    );
+    state.failNextCommentWrite = true;
+    await evaluate(`document.querySelector('.comment-compose-toggle').click()`);
+    await waitFor(`!!document.querySelector('.comment-form textarea')`);
+    await typeComment(".comment-form textarea", "다시 등록할 댓글");
+    await evaluate(`document.querySelector('.comment-form .button').click()`);
+    await waitFor(`!!document.querySelector('.post-comments [role="alert"]')`);
+    assert.equal(
+      await evaluate(`document.querySelector('.comment-form textarea').value`),
+      "다시 등록할 댓글",
+      "failed comment preserves the draft",
+    );
+    await evaluate(`document.querySelector('.comment-form .button').click()`);
+    await waitFor(`document.querySelectorAll('.comment-body').length === 4`);
+    await evaluate(`(() => {
+      const item=[...document.querySelectorAll('.comment-item')].find(el=>el.querySelector('.comment-body')?.textContent==='등록한 댓글');
+      [...item.querySelectorAll('.comment-actions button')].find(el=>el.textContent==='삭제').click();
+    })()`);
+    await waitFor(`!!document.querySelector('dialog[open] .danger-button')`);
+    await evaluate(
+      `document.querySelector('dialog[open] .danger-button').click()`,
+    );
+    await waitFor(
+      `!document.querySelector('dialog[open]') && document.querySelectorAll('.comment-body').length === 3`,
+    );
+    assert.deepEqual(await commentBodies(), [
+      "먼저 쓴 댓글",
+      "수정한 댓글",
+      "다시 등록할 댓글",
+    ]);
+    await screenshot("comments-desktop.png");
+    await send("Emulation.setDeviceMetricsOverride", {
+      width: 360,
+      height: 844,
+      deviceScaleFactor: 1,
+      mobile: true,
+    });
+    await delay(100);
+    assert.ok(
+      await evaluate(`document.documentElement.scrollWidth <= innerWidth`),
+      "comments fit a 360px mobile screen",
+    );
+    assert.ok(
+      await evaluate(`(() => {
+      const name=document.querySelector('.comment-author strong').getBoundingClientRect();
+      const date=document.querySelector('.comment-author time').getBoundingClientRect();
+      return date.left >= name.right && Math.abs(date.top-name.top) < 5;
+    })()`),
+      "comment name and time share a line at 360px",
+    );
+    await screenshot("comments-mobile.png");
+    await evaluate(`document.querySelector('.comment-compose-toggle').click()`);
+    await waitFor(
+      `document.activeElement === document.querySelector('.comment-form textarea')`,
+    );
+    assert.ok(
+      await evaluate(`document.documentElement.scrollWidth <= innerWidth`),
+      "comment input fits a 360px mobile screen",
+    );
+    await screenshot("comment-input-mobile.png");
+    await evaluate(`document.querySelector('.comment-compose-toggle').click()`);
+    await evaluate(
+      `document.querySelector('.post-actions [aria-label$="글 수정"]').click()`,
+    );
+    await waitFor(`!!document.querySelector('dialog[open] #post-photo')`);
+    await waitFor(
+      `document.querySelector('.post-image-editor img')?.naturalWidth === 480`,
+    );
+    assert.ok(
+      await evaluate(
+        `document.querySelector('dialog[open]').scrollWidth <= document.querySelector('dialog[open]').clientWidth`,
+      ),
+      "post image editor fits 360px",
+    );
+    await screenshot("post-image-editor-mobile.png");
+    await evaluate(
+      `document.querySelector('.post-image-editor button').click()`,
+    );
+    await evaluate(
+      `document.querySelector('dialog[open] [aria-label="닫기"]').click()`,
+    );
+    assert.equal(
+      await evaluate(
+        `document.querySelector('.post-image').getAttribute('href')`,
+      ),
+      firstPostPhoto,
+      "cancel leaves image unchanged",
+    );
+    await evaluate(
+      `document.querySelector('.post-actions [aria-label$="글 수정"]').click()`,
+    );
+    await waitFor(`!!document.querySelector('dialog[open] #post-photo')`);
+    await choosePostImage("replacement");
+    await evaluate(
+      `document.querySelector('dialog[open] .dialog-actions .primary').click()`,
+    );
+    await waitFor(
+      `!document.querySelector('dialog[open]') && document.querySelector('.post-image')?.getAttribute('href') !== ${JSON.stringify(firstPostPhoto)}`,
+    );
+    await waitFor(
+      `document.querySelector('.post-image img')?.naturalWidth === 480`,
+    );
+    const secondPostPhoto = await evaluate(
+      `document.querySelector('.post-image').getAttribute('href')`,
+    );
+    assert.notEqual(firstPostPhoto, secondPostPhoto);
+    await evaluate(
+      `document.querySelector('.post-actions [aria-label$="글 수정"]').click()`,
+    );
+    await waitFor(`!!document.querySelector('dialog[open] #post-photo')`);
+    await evaluate(
+      `document.querySelector('.post-image-editor button').click()`,
+    );
+    await evaluate(
+      `document.querySelector('dialog[open] .dialog-actions .primary').click()`,
+    );
+    await waitFor(
+      `!document.querySelector('dialog[open]') && !document.querySelector('.post-image')`,
+    );
+    await send("Emulation.setDeviceMetricsOverride", {
+      width: 1440,
+      height: 1000,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
     await evaluate(
       `document.querySelector('.desktop-nav a[href="/"]').click()`,
     );
@@ -278,7 +532,7 @@ export async function checkBrowser({ base, token, requests, todos, state }) {
     await screenshot("login-mobile.png");
     assert.deepEqual(exceptions, [], "no uncaught browser errors");
     console.log(
-      `PASS Chrome: date/back zero requests, member filter, completion rollback, calendar/post create and revalidate, mobile 360/390px, quiz, login. Screenshots: ${artifacts}`,
+      `PASS Chrome: calendar navigation and saves, post image upload/preview/replace/remove/cancel/failure recovery, comment typography/toggle/focus/draft preservation/create/edit/delete/order/ownership/failure recovery, mobile 360/390px, quiz, login. Screenshots: ${artifacts}`,
     );
   } finally {
     socket?.close();

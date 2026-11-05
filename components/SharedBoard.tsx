@@ -1,30 +1,54 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { deletePostAction, savePostAction } from "@/lib/client-actions";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { deletePostAction } from "@/lib/client-actions";
 import { getMember } from "@/lib/catalog";
 import { readableTime } from "@/lib/dates";
-import type { Member, SharedPost } from "@/lib/types";
+import type { Member, SharedComment, SharedPostView } from "@/lib/types";
 import Icon from "./Icon";
 import Dialog from "./Dialog";
+import PostComments from "./PostComments";
 
 export default function SharedBoard({
   member,
   posts,
+  comments,
 }: {
   member: Member;
-  posts: SharedPost[];
+  posts: SharedPostView[];
+  comments: SharedComment[];
 }) {
-  const [editing, setEditing] = useState<SharedPost | "new" | null>(null);
+  const router = useRouter();
+  const [editing, setEditing] = useState<SharedPostView | "new" | null>(null);
   const [body, setBody] = useState("");
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
   const [confirm, setConfirm] = useState<string | null>(null);
-  const open = (post?: SharedPost) => {
+  const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
+  useEffect(() => {
+    if (photo) return () => URL.revokeObjectURL(photo.url);
+  }, [photo]);
+  const imagePreview = photo
+    ? photo.url
+    : !removePhoto && editing && editing !== "new"
+      ? editing.photo_url
+      : null;
+  const commentsByPost = new Map<string, SharedComment[]>();
+  for (const comment of comments) {
+    const group = commentsByPost.get(comment.post_id);
+    if (group) group.push(comment);
+    else commentsByPost.set(comment.post_id, [comment]);
+  }
+  const open = (post?: SharedPostView) => {
     setBody(post?.body || "");
     setUrl(post?.url || "");
     setError("");
+    setPhoto(null);
+    setRemovePhoto(false);
     setEditing(post || "new");
   };
   return (
@@ -35,7 +59,7 @@ export default function SharedBoard({
             공유함<span className="heading-dot">.</span>
           </h1>
           <p className="page-description">
-            학습 메모와 자료 링크를 공유하세요.
+            학습 메모, 이미지와 자료 링크를 공유하세요.
           </p>
         </div>
         <button className="button primary" onClick={() => open()}>
@@ -77,7 +101,10 @@ export default function SharedBoard({
                       <button
                         className="icon-button"
                         aria-label={`${owner.name} 글 삭제`}
-                        onClick={() => setConfirm(post.id)}
+                        onClick={() => {
+                          setError("");
+                          setConfirm(post.id);
+                        }}
                       >
                         <Icon name="trash" size={16} />
                       </button>
@@ -85,6 +112,23 @@ export default function SharedBoard({
                   )}
                 </div>
                 <p className="post-body">{post.body}</p>
+                {post.photo_url && (
+                  <a
+                    className="post-image"
+                    href={post.photo_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${owner.name}의 첨부 이미지 크게 보기 (새 탭)`}
+                  >
+                    <Image
+                      src={post.photo_url}
+                      alt={`${owner.name}의 첨부 이미지`}
+                      width={1200}
+                      height={800}
+                      unoptimized
+                    />
+                  </a>
+                )}
                 {post.url && (
                   <a
                     href={post.url}
@@ -99,6 +143,11 @@ export default function SharedBoard({
                     <Icon name="external" size={15} />
                   </a>
                 )}
+                <PostComments
+                  member={member}
+                  postId={post.id}
+                  comments={commentsByPost.get(post.id) || []}
+                />
               </article>
             );
           })}
@@ -119,7 +168,10 @@ export default function SharedBoard({
         <Dialog
           title={editing === "new" ? "공유 글 작성" : "공유 글 수정"}
           onClose={() => {
-            if (!pending) setEditing(null);
+            if (!pending) {
+              setEditing(null);
+              setPhoto(null);
+            }
           }}
         >
           <form
@@ -128,14 +180,32 @@ export default function SharedBoard({
               event.preventDefault();
               setError("");
               startTransition(async () => {
-                const result = await savePostAction({
-                  id: editing === "new" ? undefined : editing.id,
-                  body,
-                  url,
-                });
-                if (result.ok) {
+                try {
+                  const form = new FormData();
+                  if (editing !== "new") form.set("id", editing.id);
+                  form.set("body", body);
+                  form.set("url", url);
+                  form.set("removePhoto", String(removePhoto));
+                  if (photo) form.set("photo", photo.file);
+                  const response = await fetch("/api/posts", {
+                    method: "POST",
+                    body: form,
+                  });
+                  const result = await response.json();
+                  if (!response.ok)
+                    throw new Error(
+                      result.error || "글을 저장하지 못했습니다.",
+                    );
                   setEditing(null);
-                } else setError(result.error);
+                  setPhoto(null);
+                  router.refresh();
+                } catch (error) {
+                  setError(
+                    error instanceof Error && /[가-힣]/.test(error.message)
+                      ? error.message
+                      : "연결이 원활하지 않습니다. 입력한 내용은 유지됩니다. 다시 시도해 주세요.",
+                  );
+                }
               });
             }}
           >
@@ -164,6 +234,68 @@ export default function SharedBoard({
               onChange={(event) => setUrl(event.target.value)}
               disabled={pending}
             />
+            <span className="field-label">
+              이미지 <small>선택 · 1장</small>
+            </span>
+            {imagePreview && (
+              <div className="post-image-editor">
+                <Image
+                  src={imagePreview}
+                  alt="첨부 이미지 미리보기"
+                  width={600}
+                  height={400}
+                  unoptimized
+                />
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={pending}
+                  onClick={() => {
+                    setPhoto(null);
+                    setRemovePhoto(true);
+                  }}
+                >
+                  <Icon name="trash" size={16} />
+                  이미지 삭제
+                </button>
+              </div>
+            )}
+            <label
+              className={`photo-picker post-photo-picker ${pending ? "disabled" : ""}`}
+            >
+              <Icon name="image" size={18} />
+              {imagePreview ? "이미지 교체" : "이미지 첨부"}
+              <input
+                id="post-photo"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                aria-label={imagePreview ? "이미지 교체" : "이미지 첨부"}
+                disabled={pending}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  if (
+                    !["image/jpeg", "image/png", "image/webp"].includes(
+                      file.type,
+                    ) ||
+                    file.size === 0 ||
+                    file.size > 2 * 1024 * 1024
+                  ) {
+                    setError(
+                      "JPEG·PNG·WebP 이미지를 2MB 이내로 선택해 주세요.",
+                    );
+                    return;
+                  }
+                  setError("");
+                  setPhoto({ file, url: URL.createObjectURL(file) });
+                  setRemovePhoto(false);
+                }}
+              />
+            </label>
+            <p className="field-help">
+              JPEG·PNG·WebP · 최대 2MB. 이미지 변경은 글을 저장하면 반영됩니다.
+            </p>
             {error && (
               <p className="form-error" role="alert">
                 {error}
@@ -186,7 +318,9 @@ export default function SharedBoard({
           }}
         >
           <div className="editor-form">
-            <p className="muted">삭제한 글은 복구할 수 없어요.</p>
+            <p className="muted">
+              이 글과 첨부 이미지, 댓글이 모두 삭제되며 복구할 수 없습니다.
+            </p>
             {error && (
               <p className="form-error" role="alert">
                 {error}

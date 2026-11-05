@@ -38,6 +38,8 @@
 - 작은 입력으로 끝낸다. 사진과 메모는 선택이다.
 - Tradeoffs: PC와 모바일 모두 월간 달력에서 모든 일정의 이름과 작성자를 표시한다. 날짜의 높이는 내용에 따라 늘어나며 +n 접기는 사용하지 않는다.
 - 영단어 퀴즈: 하나 이상의 묶음 선택 → 전체 무작위 출제 → 4지선다 응답 → 정답 확인 → 결과·오답 재출제. 시간 제한과 순위를 두지 않는다. 오답 보기에도 최초 선택 묶음의 단어를 사용한다.
+- 공유함 댓글: 기존 게시글 박스 안에서 댓글 목록을 항상 표시하고, 입력창은 “댓글 쓰기” 버튼을 누르면 펼친다. 이름 오른쪽에 옅은 날짜·시간을 표시하며 게시글 작성자 정보보다 작게 배치한다. 오래된 작성 시각부터 표시하고 수정해도 순서는 바뀌지 않는다. 본인의 댓글에만 수정·삭제를 제공하며 삭제는 확인 대화상자를 사용한다. 댓글 등록에 성공하면 입력창을 닫고, 요청 실패 또는 입력창을 잠시 닫을 때에는 작성 내용을 보존한다. 게시글 삭제 시 댓글도 함께 삭제됨을 안내한다. 댓글은 최대 1,000자다.
+- 공유함 이미지: 글당 JPEG·PNG·WebP 이미지 1장(최대 2MB)을 선택 첨부한다. 작성·수정 화면에서 미리보기와 교체·삭제를 제공하고 저장 후 반영한다. 게시글에서는 원본 비율을 유지해 표시하고 새 탭에서 크게 볼 수 있다. 로그인한 구성원만 조회하며 실패하면 본문과 선택 파일을 보존한다. 모바일에서도 가로 넘침 없이 표시한다.
 
 ## Visual language
 
@@ -52,7 +54,7 @@
 ## Components
 
 - Existing components to reuse: 없음.
-- New/changed components: AppShell, Icon, Calendar, TodoEditor, Dialog, CurriculumList, VocabularyQuiz, SharedBoard.
+- New/changed components: AppShell, Icon, Calendar, TodoEditor, Dialog, CurriculumList, VocabularyQuiz, SharedBoard, PostComments.
 - Variants and states: 선택 날짜, 오늘, 완료, 비어 있음, 저장 중, 오류.
 - Token/component ownership: globals.css 토큰과 공통 컴포넌트.
 

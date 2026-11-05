@@ -26,8 +26,18 @@ export type SharedPost = {
   member_id: MemberId;
   body: string;
   url: string;
+  photo_key: string | null;
   created_at: string;
   updated_at: string;
 };
+export type SharedComment = {
+  id: string;
+  post_id: string;
+  member_id: MemberId;
+  body: string;
+  created_at: string;
+  updated_at: string;
+};
+export type SharedPostView = SharedPost & { photo_url: string | null };
 export type ActionResult<T = undefined> =
   { ok: true; data?: T } | { ok: false; error: string };

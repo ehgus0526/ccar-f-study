@@ -59,11 +59,20 @@ if (process.argv.includes("--migrate-local") && existsSync(file)) {
   try {
     const todos = db.prepare("SELECT * FROM todos").all();
     const posts = db.prepare("SELECT * FROM shared_posts").all();
-    for (const todo of todos) {
-      if (!todo.photo_key) continue;
-      const bytes = await readFile(join(directory, "photos", todo.photo_key));
-      const ext = todo.photo_key.split(".").at(-1);
-      await request(`/storage/v1/object/proofs/${todo.photo_key}`, bytes, {
+    // SQLite files created before comments were introduced have no comment table.
+    const hasComments = db
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='shared_comments'",
+      )
+      .get();
+    const comments = hasComments
+      ? db.prepare("SELECT * FROM shared_comments").all()
+      : [];
+    for (const record of [...todos, ...posts]) {
+      if (!record.photo_key) continue;
+      const bytes = await readFile(join(directory, "photos", record.photo_key));
+      const ext = record.photo_key.split(".").at(-1);
+      await request(`/storage/v1/object/proofs/${record.photo_key}`, bytes, {
         "Content-Type": `image/${ext === "jpg" ? "jpeg" : ext}`,
         "x-upsert": "true",
       });
@@ -71,6 +80,7 @@ if (process.argv.includes("--migrate-local") && existsSync(file)) {
     for (const [table, records] of [
       ["todos", todos],
       ["shared_posts", posts],
+      ["shared_comments", comments],
     ]) {
       if (records.length)
         await request(
@@ -80,7 +90,7 @@ if (process.argv.includes("--migrate-local") && existsSync(file)) {
         );
     }
     console.log(
-      `로컬 일정 ${todos.length}개, 공유 글 ${posts.length}개와 연결 사진을 이전했습니다.`,
+      `로컬 일정 ${todos.length}개, 공유 글 ${posts.length}개, 댓글 ${comments.length}개와 연결 사진을 이전했습니다.`,
     );
   } finally {
     db.close();

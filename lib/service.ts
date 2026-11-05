@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { CURRICULUM } from "./catalog.ts";
 import { isDate } from "./dates.ts";
 import * as store from "./store.ts";
+import { putPhoto, removePhoto } from "./photos.ts";
 import type { MemberId, Todo } from "./types.ts";
 
 export function validId(value: unknown): asserts value is string {
@@ -122,19 +123,80 @@ export function safeUrl(value: unknown) {
 }
 export async function writePost(
   memberId: MemberId,
-  input: { id?: string; body: string; url: string },
+  input: {
+    id?: string;
+    body: string;
+    url: string;
+    photo?: Uint8Array;
+    removePhoto?: boolean;
+  },
 ) {
-  if (input.id) validId(input.id);
+  if (input.id !== undefined) validId(input.id);
+  const body = text(input.body, 4000, true);
+  const url = safeUrl(input.url);
+  const previous =
+    input.id !== undefined ? await ownedPost(memberId, input.id) : null;
+  const id = previous?.id || randomUUID();
+  const newKey = input.photo ? await putPhoto(memberId, id, input.photo) : null;
+  const photoKey =
+    newKey || (input.removePhoto ? null : (previous?.photo_key ?? null));
   const now = new Date().toISOString();
-  await store.savePost(
+  try {
+    await store.savePost(
+      {
+        id,
+        member_id: memberId,
+        body,
+        url,
+        photo_key: photoKey,
+        created_at: previous?.created_at || now,
+        updated_at: now,
+      },
+      previous !== null,
+    );
+  } catch (error) {
+    if (newKey) await cleanupPostPhoto(newKey, id);
+    throw error;
+  }
+  if (previous?.photo_key && previous.photo_key !== photoKey)
+    await cleanupPostPhoto(previous.photo_key, id);
+  return id;
+}
+export async function ownedPost(memberId: MemberId, id: string) {
+  validId(id);
+  const post = await store.getPost(id);
+  if (!post || post.member_id !== memberId)
+    throw new Error("본인의 글만 변경할 수 있습니다.");
+  return post;
+}
+async function cleanupPostPhoto(key: string, postId: string) {
+  try {
+    await removePhoto(key);
+  } catch {
+    console.error("Post photo cleanup failed for post", postId);
+  }
+}
+export async function deletePost(memberId: MemberId, id: string) {
+  const post = await ownedPost(memberId, id);
+  await store.removePost(id, memberId);
+  if (post.photo_key) await cleanupPostPhoto(post.photo_key, id);
+}
+export async function writeComment(
+  memberId: MemberId,
+  input: { id?: string; postId: string; body: string },
+) {
+  validId(input.postId);
+  if (input.id !== undefined) validId(input.id);
+  const now = new Date().toISOString();
+  await store.saveComment(
     {
       id: input.id || randomUUID(),
+      post_id: input.postId,
       member_id: memberId,
-      body: text(input.body, 4000, true),
-      url: safeUrl(input.url),
+      body: text(input.body, 1000, true),
       created_at: now,
       updated_at: now,
     },
-    Boolean(input.id),
+    input.id !== undefined,
   );
 }

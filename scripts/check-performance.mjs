@@ -10,7 +10,18 @@ const token = "a".repeat(64);
 const tokenHash = createHash("sha256").update(token).digest("hex");
 const requests = [];
 const posts = [];
-const state = { failNextTodoWrite: false };
+const comments = [];
+const photos = new Map();
+const png = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aNlsAAAAASUVORK5CYII=",
+  "base64",
+);
+const state = {
+  failNextTodoWrite: false,
+  failNextCommentWrite: false,
+  failNextPostWrite: false,
+  failNextPhotoWrite: false,
+};
 let revoked = false;
 const todos = Array.from({ length: 8 }, (_, i) => {
   const id = randomUUID();
@@ -74,13 +85,130 @@ const mock = createServer(async (req, res) => {
         .map((todo) => ({ curriculum_id: todo.curriculum_id }));
     else result = todos;
   } else if (url.pathname === "/rest/v1/shared_posts") {
-    if (req.method === "POST") {
+    if (req.method === "POST" || req.method === "PATCH") {
       let body = "";
       for await (const chunk of req) body += chunk;
       const post = JSON.parse(body);
-      posts.push(post);
-      result = [post];
-    } else result = posts;
+      if (state.failNextPostWrite) {
+        state.failNextPostWrite = false;
+        res.writeHead(503);
+        res.end();
+        return;
+      }
+      if (req.method === "PATCH") {
+        result = posts.filter(
+          (item) =>
+            `eq.${item.id}` === url.searchParams.get("id") &&
+            `eq.${item.member_id}` === url.searchParams.get("member_id"),
+        );
+        for (const item of result) Object.assign(item, post);
+      } else {
+        posts.push(post);
+        // Seed fixture replies to verify ordering and controls for different authors.
+        for (const [index, memberId] of ["yeeun", "dohyeon"].entries()) {
+          const created = new Date(
+            Date.parse(post.created_at) + index,
+          ).toISOString();
+          comments.push({
+            id: randomUUID(),
+            post_id: post.id,
+            member_id: memberId,
+            body: index ? "나중 쓴 댓글" : "먼저 쓴 댓글",
+            created_at: created,
+            updated_at: created,
+          });
+        }
+        result = [post];
+      }
+    } else if (req.method === "DELETE") {
+      result = posts.filter(
+        (item) =>
+          `eq.${item.id}` === url.searchParams.get("id") &&
+          `eq.${item.member_id}` === url.searchParams.get("member_id"),
+      );
+      for (const item of result) {
+        posts.splice(posts.indexOf(item), 1);
+        for (let i = comments.length - 1; i >= 0; i--)
+          if (comments[i].post_id === item.id) comments.splice(i, 1);
+      }
+    } else
+      result = url.searchParams.has("id")
+        ? posts.filter((item) => `eq.${item.id}` === url.searchParams.get("id"))
+        : posts;
+  } else if (url.pathname === "/rest/v1/shared_comments") {
+    if (req.method === "POST" || req.method === "PATCH") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const changes = JSON.parse(body);
+      if (state.failNextCommentWrite) {
+        state.failNextCommentWrite = false;
+        res.writeHead(503);
+        res.end();
+        return;
+      }
+      if (req.method === "POST") {
+        comments.push(changes);
+        result = [changes];
+      } else {
+        result = comments.filter(
+          (comment) =>
+            `eq.${comment.id}` === url.searchParams.get("id") &&
+            `eq.${comment.post_id}` === url.searchParams.get("post_id") &&
+            `eq.${comment.member_id}` === url.searchParams.get("member_id"),
+        );
+        for (const comment of result) Object.assign(comment, changes);
+      }
+    } else if (req.method === "DELETE") {
+      result = comments.filter(
+        (comment) =>
+          `eq.${comment.id}` === url.searchParams.get("id") &&
+          `eq.${comment.member_id}` === url.searchParams.get("member_id"),
+      );
+      for (const comment of result)
+        comments.splice(comments.indexOf(comment), 1);
+    } else
+      result = comments
+        .slice()
+        .sort(
+          (a, b) =>
+            a.created_at.localeCompare(b.created_at) ||
+            a.id.localeCompare(b.id),
+        )
+        .slice(
+          Number(url.searchParams.get("offset") || 0),
+          Number(url.searchParams.get("offset") || 0) +
+            Number(url.searchParams.get("limit") || 1000),
+        );
+  } else if (
+    url.pathname.startsWith("/storage/v1/object/proofs/") &&
+    req.method === "POST"
+  ) {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    if (state.failNextPhotoWrite) {
+      state.failNextPhotoWrite = false;
+      res.writeHead(503);
+      res.end();
+      return;
+    }
+    photos.set(url.pathname.split("/proofs/")[1], Buffer.concat(chunks));
+    result = { Key: url.pathname };
+  } else if (
+    url.pathname === "/storage/v1/object/proofs" &&
+    req.method === "DELETE"
+  ) {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    for (const key of JSON.parse(body).prefixes) photos.delete(key);
+    result = [];
+  } else if (
+    url.pathname.startsWith("/storage/v1/object/sign/proofs/") &&
+    req.method === "GET"
+  ) {
+    const bytes = photos.get(url.pathname.split("/proofs/")[1]);
+    res.writeHead(bytes ? 200 : 404, { "Content-Type": "image/png" });
+    res.end(bytes);
+    return;
   } else if (url.pathname.startsWith("/storage/v1/object/sign/proofs/"))
     result = {
       signedURL: `/object/sign/proofs/${url.pathname.split("/proofs/")[1]}?token=fake-test-signature`,
@@ -223,6 +351,102 @@ try {
     assert.equal(
       requests.filter((url) => url.pathname.startsWith("/storage/")).length,
       0,
+    );
+  }
+  if (!baseline) {
+    const save = (fields, images = [], authenticated = true, origin = base) => {
+      const form = new FormData();
+      for (const [key, value] of Object.entries(fields)) form.set(key, value);
+      for (const image of images)
+        form.append(
+          "photo",
+          new Blob([image], { type: "image/png" }),
+          "image.png",
+        );
+      return fetch(`${base}/api/posts`, {
+        method: "POST",
+        headers: {
+          Origin: origin,
+          ...(authenticated ? { Cookie: `ccarf_session=${token}` } : {}),
+        },
+        body: form,
+      });
+    };
+    const fields = { body: "HTTP image test", url: "" };
+    assert.equal((await save(fields, [png], false)).status, 401);
+    assert.equal(
+      (await save(fields, [png], true, "https://other.example")).status,
+      403,
+    );
+    for (const images of [
+      [png, png],
+      [Buffer.from("<svg>bad</svg>")],
+      [Buffer.alloc(2097153)],
+    ])
+      assert.ok(
+        !(await save(fields, images)).ok,
+        "invalid or oversized image rejected",
+      );
+    assert.equal(posts.length, 0);
+    assert.equal(photos.size, 0);
+    assert.ok((await save(fields, [png])).ok);
+    const post = posts[0];
+    const id = post.id;
+    const created = post.created_at;
+    const firstKey = post.photo_key;
+    assert.ok(photos.has(firstKey));
+    assert.equal(
+      (await get(`/api/post-photos/${firstKey}`, false)).status,
+      401,
+    );
+    const response = await get(`/api/post-photos/${firstKey}`);
+    assert.equal(response.status, 307);
+    assert.equal(response.headers.get("cache-control"), "private, no-store");
+    assert.equal(
+      (await get(`/api/photos/${firstKey}`)).status,
+      404,
+      "post images cannot be read as todo proofs",
+    );
+    assert.equal(
+      (await get(`/api/post-photos/${todos[0].photo_key}`)).status,
+      404,
+      "todo proofs cannot be read as post images",
+    );
+    state.failNextPostWrite = true;
+    assert.ok(
+      !(await save({ ...fields, id, body: "failed update" }, [png])).ok,
+    );
+    assert.equal(post.body, fields.body);
+    assert.equal(post.photo_key, firstKey);
+    assert.equal(
+      photos.size,
+      1,
+      "failed DB write cleans up the newly uploaded file",
+    );
+    state.failNextPhotoWrite = true;
+    assert.ok(!(await save({ ...fields, id }, [png])).ok);
+    assert.equal(post.photo_key, firstKey);
+    assert.ok((await save({ ...fields, id, body: "text edit" })).ok);
+    assert.equal(post.photo_key, firstKey, "text editing preserves image");
+    assert.ok((await save({ ...fields, id }, [png])).ok);
+    const secondKey = post.photo_key;
+    assert.notEqual(secondKey, firstKey);
+    assert.equal(post.created_at, created);
+    assert.ok(!photos.has(firstKey));
+    assert.equal((await get(`/api/post-photos/${firstKey}`)).status, 404);
+    assert.ok((await save({ ...fields, id, removePhoto: "true" })).ok);
+    assert.equal(post.photo_key, null);
+    assert.equal(photos.size, 0);
+    post.member_id = "yeeun";
+    assert.ok(
+      !(await save({ ...fields, id }, [png])).ok,
+      "other author's post cannot be edited",
+    );
+    assert.equal(photos.size, 0);
+    posts.length = 0;
+    comments.length = 0;
+    console.log(
+      "PASS post image HTTP checks: uploads, validation, access, replacement/removal, ownership and failure rollback.",
     );
   }
   if (process.argv.includes("--browser")) {

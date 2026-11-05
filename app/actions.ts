@@ -104,25 +104,35 @@ export async function deleteTodoPhotoAction(id: string): Promise<ActionResult> {
     return failure(error);
   }
 }
-export async function savePostAction(input: {
-  id?: string;
-  body: string;
-  url: string;
-}): Promise<ActionResult> {
+export async function deletePostAction(id: string): Promise<ActionResult> {
   try {
     const member = await requireMember();
-    await service.writePost(member.id, input);
+    await service.deletePost(member.id, id);
     revalidatePath("/shared");
     return { ok: true };
   } catch (error) {
     return failure(error);
   }
 }
-export async function deletePostAction(id: string): Promise<ActionResult> {
+export async function saveCommentAction(input: {
+  id?: string;
+  postId: string;
+  body: string;
+}): Promise<ActionResult> {
+  try {
+    const member = await requireMember();
+    await service.writeComment(member.id, input);
+    revalidatePath("/shared");
+    return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+export async function deleteCommentAction(id: string): Promise<ActionResult> {
   try {
     const member = await requireMember();
     service.validId(id);
-    await store.removePost(id, member.id);
+    await store.removeComment(id, member.id);
     revalidatePath("/shared");
     return { ok: true };
   } catch (error) {

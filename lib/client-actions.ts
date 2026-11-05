@@ -24,5 +24,6 @@ export const updateTodoAction = safe(actions.updateTodoAction);
 export const completeTodoAction = safe(actions.completeTodoAction);
 export const deleteTodoAction = safe(actions.deleteTodoAction);
 export const deleteTodoPhotoAction = safe(actions.deleteTodoPhotoAction);
-export const savePostAction = safe(actions.savePostAction);
 export const deletePostAction = safe(actions.deletePostAction);
+export const saveCommentAction = safe(actions.saveCommentAction);
+export const deleteCommentAction = safe(actions.deleteCommentAction);
