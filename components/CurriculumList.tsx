@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CURRICULUM, KIND_LABELS } from "@/lib/catalog";
+import { CURRICULUM, KIND_LABELS, LMS_URL } from "@/lib/catalog";
 import type { CurriculumItem, CurriculumKind, Member } from "@/lib/types";
 import Icon from "./Icon";
 import TodoEditor from "./TodoEditor";
@@ -101,7 +101,27 @@ export default function CurriculumList({
                     </span>
                   )}
                 </div>
-                <h3>{item.title}</h3>
+                <h3>
+                  {item.kind === "workbook" ? (
+                    <a
+                      className="curriculum-title-link"
+                      href={
+                        new URL(
+                          `/workbook/${item.code.replace("-", ".")}`,
+                          LMS_URL,
+                        ).href
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${item.title} (새 탭에서 열기)`}
+                    >
+                      {item.title}
+                      <Icon name="external" size={14} />
+                    </a>
+                  ) : (
+                    item.title
+                  )}
+                </h3>
                 {kind === "vocab" && (
                   <p>복습 일정을 여러 날짜에 등록할 수 있습니다.</p>
                 )}
